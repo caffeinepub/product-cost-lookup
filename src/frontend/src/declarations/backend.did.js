@@ -21,6 +21,8 @@ export const idlService = IDL.Service({
       [],
       [],
     ),
+  'bulkImportProducts' : IDL.Func([IDL.Vec(Product)], [], []),
+  'clearAllProducts' : IDL.Func([], [], []),
   'containsProduct' : IDL.Func([IDL.Text], [IDL.Bool], ['query']),
   'deleteProduct' : IDL.Func([IDL.Text], [], []),
   'getProductBySKU' : IDL.Func([IDL.Text], [Product], ['query']),
@@ -28,7 +30,6 @@ export const idlService = IDL.Service({
   'listAllProducts' : IDL.Func([], [IDL.Vec(Product)], ['query']),
   'searchProductsByName' : IDL.Func([IDL.Text], [IDL.Vec(Product)], ['query']),
   'seedSampleData' : IDL.Func([], [], []),
-  'toText' : IDL.Func([Product], [IDL.Text], ['query']),
   'updateProduct' : IDL.Func(
       [IDL.Text, IDL.Text, IDL.Float64, IDL.Opt(IDL.Text)],
       [],
@@ -52,6 +53,8 @@ export const idlFactory = ({ IDL }) => {
         [],
         [],
       ),
+    'bulkImportProducts' : IDL.Func([IDL.Vec(Product)], [], []),
+    'clearAllProducts' : IDL.Func([], [], []),
     'containsProduct' : IDL.Func([IDL.Text], [IDL.Bool], ['query']),
     'deleteProduct' : IDL.Func([IDL.Text], [], []),
     'getProductBySKU' : IDL.Func([IDL.Text], [Product], ['query']),
@@ -63,7 +66,6 @@ export const idlFactory = ({ IDL }) => {
         ['query'],
       ),
     'seedSampleData' : IDL.Func([], [], []),
-    'toText' : IDL.Func([Product], [IDL.Text], ['query']),
     'updateProduct' : IDL.Func(
         [IDL.Text, IDL.Text, IDL.Float64, IDL.Opt(IDL.Text)],
         [],

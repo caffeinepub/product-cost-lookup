@@ -12,18 +12,24 @@ import {
   Package,
   Pencil,
   Plus,
+  ScanBarcode,
   Search,
   Tag,
   Trash2,
+  Upload,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
+import { BarcodeScanner } from "./components/BarcodeScanner";
+import { ClearAllConfirmDialog } from "./components/ClearAllConfirmDialog";
+import { CsvUploadDialog } from "./components/CsvUploadDialog";
 import { DeleteConfirmDialog } from "./components/DeleteConfirmDialog";
 import { ProductForm } from "./components/ProductForm";
 import { useActor } from "./hooks/useActor";
 import {
   useAddProduct,
+  useClearAllProducts,
   useDeleteProduct,
   useListAllProducts,
   useProductCount,
@@ -37,9 +43,9 @@ type SortKey = "name" | "sku" | "cost";
 type SortDir = "asc" | "desc";
 
 function formatCost(cost: number) {
-  return new Intl.NumberFormat("en-US", {
+  return new Intl.NumberFormat("en-IN", {
     style: "currency",
-    currency: "USD",
+    currency: "INR",
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(cost);
@@ -51,8 +57,11 @@ export default function App() {
   const [sortKey, setSortKey] = useState<SortKey>("name");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [addOpen, setAddOpen] = useState(false);
+  const [csvOpen, setCsvOpen] = useState(false);
+  const [clearAllOpen, setClearAllOpen] = useState(false);
   const [editProduct, setEditProduct] = useState<Product | null>(null);
   const [deleteProduct, setDeleteProduct] = useState<Product | null>(null);
+  const [scannerOpen, setScannerOpen] = useState(false);
   const [seeded, setSeeded] = useState(false);
 
   const { actor } = useActor();
@@ -76,6 +85,7 @@ export default function App() {
   const addMutation = useAddProduct();
   const updateMutation = useUpdateProduct();
   const deleteMutation = useDeleteProduct();
+  const clearAllMutation = useClearAllProducts();
 
   // Seed on first load if empty
   useEffect(() => {
@@ -97,7 +107,9 @@ export default function App() {
   // Sort products
   const sorted = [...(products ?? [])].sort((a, b) => {
     let cmp = 0;
-    if (sortKey === "name") cmp = a.name.localeCompare(b.name);
+    const aLabel = a.name || a.sku;
+    const bLabel = b.name || b.sku;
+    if (sortKey === "name") cmp = aLabel.localeCompare(bLabel);
     else if (sortKey === "sku") cmp = a.sku.localeCompare(b.sku);
     else if (sortKey === "cost") cmp = a.cost - b.cost;
     return sortDir === "asc" ? cmp : -cmp;
@@ -121,7 +133,7 @@ export default function App() {
     }) => {
       await addMutation.mutateAsync(data, {
         onSuccess: () => {
-          toast.success(`Product "${data.name}" added`);
+          toast.success(`Product "${data.name || data.sku}" added`);
           setAddOpen(false);
         },
         onError: (err) => {
@@ -141,7 +153,7 @@ export default function App() {
     }) => {
       await updateMutation.mutateAsync(data, {
         onSuccess: () => {
-          toast.success(`Product "${data.name}" updated`);
+          toast.success(`Product "${data.name || data.sku}" updated`);
           setEditProduct(null);
         },
         onError: (err) => {
@@ -156,7 +168,7 @@ export default function App() {
     if (!deleteProduct) return;
     await deleteMutation.mutateAsync(deleteProduct.sku, {
       onSuccess: () => {
-        toast.success(`"${deleteProduct.name}" deleted`);
+        toast.success(`"${deleteProduct.name || deleteProduct.sku}" deleted`);
         setDeleteProduct(null);
       },
       onError: (err) => {
@@ -164,6 +176,18 @@ export default function App() {
       },
     });
   }, [deleteMutation, deleteProduct]);
+
+  const handleClearAll = useCallback(async () => {
+    await clearAllMutation.mutateAsync(undefined, {
+      onSuccess: () => {
+        toast.success("All products cleared");
+        setClearAllOpen(false);
+      },
+      onError: (err) => {
+        toast.error(`Failed to clear products: ${(err as Error).message}`);
+      },
+    });
+  }, [clearAllMutation]);
 
   function SortIcon({ col }: { col: SortKey }) {
     if (sortKey !== col) return <ChevronUp className="h-3 w-3 opacity-25" />;
@@ -196,15 +220,39 @@ export default function App() {
               )}
             </div>
           </div>
-          <Button
-            size="sm"
-            onClick={() => setAddOpen(true)}
-            data-ocid="manage.add_button"
-            className="bg-primary text-primary-foreground hover:bg-primary/90 font-semibold gap-1.5 text-xs"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            Add Product
-          </Button>
+          <div className="flex items-center gap-2">
+            {totalCount !== undefined && totalCount > BigInt(0) && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setClearAllOpen(true)}
+                data-ocid="manage.clear_all_button"
+                className="border-destructive/40 text-destructive/70 hover:text-destructive hover:border-destructive hover:bg-destructive/10 gap-1.5 text-xs font-medium transition-colors"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Clear All
+              </Button>
+            )}
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setCsvOpen(true)}
+              data-ocid="csv_upload.open_modal_button"
+              className="border-border/60 text-muted-foreground hover:text-foreground hover:border-primary/40 gap-1.5 text-xs font-medium"
+            >
+              <Upload className="h-3.5 w-3.5" />
+              Import CSV
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => setAddOpen(true)}
+              data-ocid="manage.add_button"
+              className="bg-primary text-primary-foreground hover:bg-primary/90 font-semibold gap-1.5 text-xs"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Add Product
+            </Button>
+          </div>
         </div>
       </header>
 
@@ -219,10 +267,22 @@ export default function App() {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Search by SKU or product name..."
-              className="pl-10 pr-4 h-11 bg-card border-border focus-visible:border-primary text-sm font-sans placeholder:text-muted-foreground/60"
+              className={`pl-10 h-11 bg-card border-border focus-visible:border-primary text-sm font-sans placeholder:text-muted-foreground/60 ${searchTerm ? "pr-16" : "pr-10"}`}
               autoComplete="off"
               spellCheck={false}
             />
+            {/* Barcode scan button */}
+            <motion.button
+              data-ocid="search.scan_button"
+              onClick={() => setScannerOpen(true)}
+              className={`absolute ${searchTerm ? "right-8" : "right-3"} h-6 w-6 flex items-center justify-center text-muted-foreground hover:text-primary transition-all duration-150`}
+              aria-label="Scan barcode"
+              title="Scan barcode or QR code"
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.9 }}
+            >
+              <ScanBarcode className="h-4 w-4" />
+            </motion.button>
             <AnimatePresence>
               {searchTerm && (
                 <motion.button
@@ -334,7 +394,7 @@ export default function App() {
                 </p>
                 <p className="text-xs text-muted-foreground mt-1 max-w-xs">
                   {isSearching
-                    ? `No results for "${debouncedSearch}". Try a different SKU or name.`
+                    ? `No results for "${debouncedSearch}". Try a different SKU or partial name.`
                     : "Add your first product to get started."}
                 </p>
               </div>
@@ -357,7 +417,7 @@ export default function App() {
               <AnimatePresence initial={false}>
                 {sorted.map((product, index) => (
                   <motion.div
-                    key={product.sku}
+                    key={product.sku || product.name}
                     data-ocid={`product.item.${index + 1}`}
                     initial={{ opacity: 0, y: -4 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -367,18 +427,28 @@ export default function App() {
                   >
                     {/* SKU */}
                     <div className="pr-2">
-                      <Badge
-                        variant="outline"
-                        className="sku-badge border-border/70 text-muted-foreground bg-muted/20 group-hover:border-primary/30 group-hover:text-primary/80 transition-colors"
-                      >
-                        {product.sku}
-                      </Badge>
+                      {product.sku.trim() ? (
+                        <Badge
+                          variant="outline"
+                          className="sku-badge border-border/70 text-muted-foreground bg-muted/20 group-hover:border-primary/30 group-hover:text-primary/80 transition-colors"
+                        >
+                          {product.sku}
+                        </Badge>
+                      ) : (
+                        <span className="text-muted-foreground/40 text-xs font-mono">
+                          —
+                        </span>
+                      )}
                     </div>
 
                     {/* Name + Description */}
                     <div className="pr-4 min-w-0">
                       <p className="text-sm font-medium text-foreground truncate">
-                        {product.name}
+                        {product.name || (
+                          <span className="text-muted-foreground/60 italic">
+                            (no name)
+                          </span>
+                        )}
                       </p>
                       {product.description && (
                         <p className="text-xs text-muted-foreground/70 truncate mt-0.5">
@@ -389,9 +459,16 @@ export default function App() {
 
                     {/* Cost */}
                     <div className="pr-6 text-right tabular-nums">
-                      <span className="cost-figure text-sm">
-                        {formatCost(product.cost)}
-                      </span>
+                      {product.cost === -1 ? (
+                        <span className="text-xs text-amber-500/80 italic leading-tight block max-w-[160px] text-right">
+                          Product has multiple variants, please check your
+                          master copy
+                        </span>
+                      ) : (
+                        <span className="cost-figure text-sm">
+                          {formatCost(product.cost)}
+                        </span>
+                      )}
                     </div>
 
                     {/* Actions */}
@@ -461,6 +538,19 @@ export default function App() {
         </div>
       </footer>
 
+      {/* Barcode Scanner Dialog */}
+      <BarcodeScanner
+        open={scannerOpen}
+        onClose={() => setScannerOpen(false)}
+        onScan={(val) => {
+          setSearchTerm(val);
+          setScannerOpen(false);
+        }}
+      />
+
+      {/* CSV Upload Dialog */}
+      <CsvUploadDialog open={csvOpen} onClose={() => setCsvOpen(false)} />
+
       {/* Add Product Dialog */}
       <ProductForm
         open={addOpen}
@@ -488,6 +578,14 @@ export default function App() {
         productName={deleteProduct?.name ?? ""}
         productSku={deleteProduct?.sku ?? ""}
         isLoading={deleteMutation.isPending}
+      />
+
+      {/* Clear All Confirm Dialog */}
+      <ClearAllConfirmDialog
+        open={clearAllOpen}
+        onClose={() => setClearAllOpen(false)}
+        onConfirm={handleClearAll}
+        isLoading={clearAllMutation.isPending}
       />
     </div>
   );

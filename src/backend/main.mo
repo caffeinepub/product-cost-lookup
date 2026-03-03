@@ -1,10 +1,12 @@
 import Text "mo:core/Text";
+import List "mo:core/List";
 import Array "mo:core/Array";
-import Runtime "mo:core/Runtime";
-import Map "mo:core/Map";
-import Iter "mo:core/Iter";
 import Float "mo:core/Float";
-import Order "mo:core/Order";
+import Map "mo:core/Map";
+import Nat "mo:core/Nat";
+import Iter "mo:core/Iter";
+import Runtime "mo:core/Runtime";
+import Char "mo:core/Char";
 
 actor {
   type Product = {
@@ -14,122 +16,154 @@ actor {
     description : ?Text;
   };
 
-  module Product {
-    public func compare(p1 : Product, p2 : Product) : Order.Order {
-      Text.compare(p1.sku, p2.sku);
+  let products = Map.empty<Text, Product>();
+  var nextId = 0;
+  let temporaryClearingList = List.empty<Text>();
+
+  func trimText(input : Text) : Text {
+    let chars = input.toArray();
+    let filteredChars = chars.filter(func(c) { not c.isWhitespace() });
+    Text.fromArray(filteredChars);
+  };
+
+  func makeKey(sku : Text) : Text {
+    let trimmedSku = trimText(sku);
+    if (trimmedSku.isEmpty()) {
+      let newId = "__id_" # nextId.toText();
+      nextId += 1;
+      newId;
+    } else {
+      trimmedSku;
     };
   };
 
-  let products = Map.empty<Text, Product>();
+  func validateProductInfo(sku : Text, name : Text, cost : Float) {
+    let trimmedSku = trimText(sku);
+    let trimmedName = trimText(name);
 
-  // Custom toText and comparison for product
-  public query ({ caller }) func toText(product : Product) : async Text {
-    product.name;
+    let skuEmpty = trimmedSku.isEmpty();
+    let nameEmpty = trimmedName.isEmpty();
+
+    if (skuEmpty and nameEmpty) {
+      Runtime.trap("Either SKU or product name must be provided (not both)");
+    };
+
+    if (cost < 0.0 and cost != -1.0) {
+      Runtime.trap("Cost cannot be negative");
+    };
   };
 
   public shared ({ caller }) func addProduct(sku : Text, name : Text, cost : Float, description : ?Text) : async () {
-    if (products.containsKey(sku)) {
-      Runtime.trap("Product already exists: " # sku);
+    validateProductInfo(sku, name, cost);
+    let key = makeKey(sku);
+    if (products.containsKey(key)) {
+      Runtime.trap("Product already exists: " # key);
     };
     let product : Product = {
-      sku;
+      sku = key;
       name;
       cost;
       description;
     };
-    products.add(sku, product);
+    products.add(key, product);
   };
 
   public shared ({ caller }) func updateProduct(sku : Text, name : Text, cost : Float, description : ?Text) : async () {
-    switch (products.get(sku)) {
-      case (null) {
-        Runtime.trap("Product does not exist: " # sku);
-      };
+    validateProductInfo(sku, name, cost);
+    let key = trimText(sku);
+    switch (products.get(key)) {
+      case (null) { Runtime.trap("Product does not exist: " # key) };
       case (?_) {
         let updatedProduct : Product = {
-          sku;
+          sku = key;
           name;
           cost;
           description;
         };
-        products.add(sku, updatedProduct);
+        products.add(key, updatedProduct);
       };
     };
   };
 
   public shared ({ caller }) func deleteProduct(sku : Text) : async () {
-    switch (products.get(sku)) {
-      case (null) {
-        Runtime.trap("Product does not exist: " # sku);
-      };
+    let key = trimText(sku);
+    switch (products.get(key)) {
+      case (null) { Runtime.trap("Product does not exist: " # key) };
       case (?_) {
-        products.remove(sku);
+        products.remove(key);
       };
     };
   };
 
   public query ({ caller }) func getProductBySKU(sku : Text) : async Product {
-    switch (products.get(sku)) {
-      case (null) {
-        Runtime.trap("Product does not exist: " # sku);
-      };
+    let key = trimText(sku);
+    switch (products.get(key)) {
+      case (null) { Runtime.trap("Product does not exist: " # key) };
       case (?product) { product };
     };
   };
 
   public query ({ caller }) func searchProductsByName(searchTerm : Text) : async [Product] {
-    products.values().toArray().filter(
-      func(product) {
-        product.name.toLower().contains(#text(searchTerm));
-      }
-    );
+    let lowerSearchTerm = searchTerm.toLower();
+    let filtered = products.values().toArray().filter(func(product) { product.name.toLower().contains(#text(lowerSearchTerm)) });
+    filtered;
   };
 
   public query ({ caller }) func listAllProducts() : async [Product] {
     products.values().toArray();
   };
 
-  // Seed with sample products
-  public shared ({ caller }) func seedSampleData() : async () {
-    let sampleProducts : [(Text, Product)] = [
-      (
-        "SKU123",
-        {
-          sku = "SKU123";
-          name = "Mocha Mug";
-          cost = 12.99;
-          description = ?"A stylish ceramic mug for coffee lovers.";
-        },
-      ),
-      (
-        "SKU456",
-        {
-          sku = "SKU456";
-          name = "Wireless Headphones";
-          cost = 89.95;
-          description = ?"High-quality over-ear headphones.";
-        },
-      ),
-      (
-        "SKU789",
-        {
-          sku = "SKU789";
-          name = "Notebook Set";
-          cost = 7.5;
-          description = ?""; // Empty description
-        },
-      ),
-    ];
-    for ((sku, product) in sampleProducts.values()) {
-      products.add(sku, product);
-    };
+  public query ({ caller }) func getProductCount() : async Nat {
+    products.size();
   };
 
   public query ({ caller }) func containsProduct(sku : Text) : async Bool {
-    products.containsKey(sku);
+    products.containsKey(trimText(sku));
   };
 
-  public query ({ caller }) func getProductCount() : async Nat {
-    products.size();
+  public shared ({ caller }) func bulkImportProducts(productsArray : [Product]) : async () {
+    for (p in productsArray.values()) {
+      let key = makeKey(p.sku);
+      products.add(key, p);
+    };
+  };
+
+  public shared ({ caller }) func seedSampleData() : async () {
+    let sampleProducts : [Product] = [
+      {
+        sku = "SKU123";
+        name = "Mocha Mug";
+        cost = 12.99;
+        description = ?"A stylish ceramic mug for coffee lovers.";
+      },
+      {
+        sku = "SKU456";
+        name = "Wireless Headphones";
+        cost = 89.95;
+        description = ?"High-quality over-ear headphones.";
+      },
+      {
+        sku = "SKU789";
+        name = "Notebook Set";
+        cost = 7.5;
+        description = ?"";
+      },
+    ];
+    await bulkImportProducts(sampleProducts);
+  };
+
+  public shared ({ caller }) func clearAllProducts() : async () {
+    products.forEach(
+      func(key, _product) {
+        temporaryClearingList.add(key);
+      }
+    );
+    temporaryClearingList.values().forEach(
+      func(key) {
+        products.remove(key);
+      }
+    );
+    temporaryClearingList.clear();
+    nextId := 0;
   };
 };

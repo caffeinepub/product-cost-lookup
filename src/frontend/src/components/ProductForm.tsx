@@ -46,7 +46,8 @@ export function ProductForm({
       if (initialData) {
         setSku(initialData.sku);
         setName(initialData.name);
-        setCost(initialData.cost.toString());
+        // Show blank in form if cost is -1 (multiple variants sentinel)
+        setCost(initialData.cost === -1 ? "" : initialData.cost.toString());
         setDescription(initialData.description ?? "");
       } else {
         setSku("");
@@ -60,11 +61,16 @@ export function ProductForm({
 
   function validate() {
     const errs: Record<string, string> = {};
-    if (!sku.trim()) errs.sku = "SKU is required";
-    if (!name.trim()) errs.name = "Product name is required";
-    const costNum = Number.parseFloat(cost);
-    if (!cost.trim() || Number.isNaN(costNum) || costNum < 0)
-      errs.cost = "Enter a valid cost (≥ 0)";
+    // At least one of SKU or name must be provided
+    if (!sku.trim() && !name.trim())
+      errs.name = "Either SKU or product name must be provided";
+    // Cost is optional — blank means multiple variants (-1)
+    if (cost.trim() !== "") {
+      const costNum = Number.parseFloat(cost);
+      if (Number.isNaN(costNum) || costNum < 0)
+        errs.cost =
+          "Enter a valid cost (≥ 0) or leave blank for multiple variants";
+    }
     return errs;
   }
 
@@ -75,10 +81,11 @@ export function ProductForm({
       setErrors(errs);
       return;
     }
+    const costValue = cost.trim() === "" ? -1 : Number.parseFloat(cost);
     await onSubmit({
       sku: sku.trim(),
       name: name.trim(),
-      cost: Number.parseFloat(cost),
+      cost: costValue,
       description: description.trim() || null,
     });
   }
@@ -97,7 +104,10 @@ export function ProductForm({
               htmlFor="product-sku"
               className="text-xs font-medium text-muted-foreground uppercase tracking-widest"
             >
-              SKU
+              SKU{" "}
+              <span className="normal-case tracking-normal text-muted-foreground/60">
+                (optional)
+              </span>
             </Label>
             <Input
               id="product-sku"
@@ -118,7 +128,10 @@ export function ProductForm({
               htmlFor="product-name"
               className="text-xs font-medium text-muted-foreground uppercase tracking-widest"
             >
-              Product Name
+              Product Name{" "}
+              <span className="normal-case tracking-normal text-muted-foreground/60">
+                (optional if SKU provided)
+              </span>
             </Label>
             <Input
               id="product-name"
@@ -137,7 +150,10 @@ export function ProductForm({
               htmlFor="product-cost"
               className="text-xs font-medium text-muted-foreground uppercase tracking-widest"
             >
-              Cost ($)
+              Cost (₹){" "}
+              <span className="normal-case tracking-normal text-muted-foreground/60">
+                (leave blank if multiple variants)
+              </span>
             </Label>
             <Input
               id="product-cost"
@@ -146,7 +162,7 @@ export function ProductForm({
               min="0"
               value={cost}
               onChange={(e) => setCost(e.target.value)}
-              placeholder="0.00"
+              placeholder="Leave blank if product has multiple variants"
               className="font-mono bg-muted/50 border-border focus:border-primary"
             />
             {errors.cost && (

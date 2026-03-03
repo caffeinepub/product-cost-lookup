@@ -25,25 +25,37 @@ export function useSearchProducts(searchTerm: string) {
       if (!actor) return [];
       if (!searchTerm.trim()) return actor.listAllProducts();
 
-      // Try SKU exact match first, then name search
       const trimmed = searchTerm.trim();
+
+      // Try SKU exact match only when the term looks like a SKU (non-empty, no spaces)
+      const skuLookupPromise =
+        trimmed.length > 0 && !trimmed.includes(" ")
+          ? actor.getProductBySKU(trimmed).catch(() => null)
+          : Promise.resolve(null);
+
       const [skuResult, nameResults] = await Promise.all([
-        actor.getProductBySKU(trimmed).catch(() => null),
+        skuLookupPromise,
         actor.searchProductsByName(trimmed),
       ]);
 
-      // Merge results, deduplicate by SKU
+      // Deduplicate by composite key: sku (if non-empty) or name
       const combined: Product[] = [];
       const seen = new Set<string>();
 
+      function dedupeKey(p: Product) {
+        return p.sku.trim() !== "" ? `sku:${p.sku}` : `name:${p.name}`;
+      }
+
       if (skuResult) {
+        const k = dedupeKey(skuResult);
         combined.push(skuResult);
-        seen.add(skuResult.sku);
+        seen.add(k);
       }
       for (const p of nameResults) {
-        if (!seen.has(p.sku)) {
+        const k = dedupeKey(p);
+        if (!seen.has(k)) {
           combined.push(p);
-          seen.add(p.sku);
+          seen.add(k);
         }
       }
       return combined;
@@ -135,6 +147,36 @@ export function useDeleteProduct() {
     mutationFn: async (sku: string) => {
       if (!actor) throw new Error("No actor");
       return actor.deleteProduct(sku);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+      queryClient.invalidateQueries({ queryKey: ["productCount"] });
+    },
+  });
+}
+
+export function useBulkImportProducts() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (productsArray: Product[]) => {
+      if (!actor) throw new Error("No actor");
+      return actor.bulkImportProducts(productsArray);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+      queryClient.invalidateQueries({ queryKey: ["productCount"] });
+    },
+  });
+}
+
+export function useClearAllProducts() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      if (!actor) throw new Error("No actor");
+      return actor.clearAllProducts();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["products"] });

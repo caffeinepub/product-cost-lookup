@@ -15,6 +15,8 @@ export interface Product {
 }
 export interface backendInterface {
     addProduct(sku: string, name: string, cost: number, description: string | null): Promise<void>;
+    bulkImportProducts(productsArray: Array<Product>): Promise<void>;
+    clearAllProducts(): Promise<void>;
     containsProduct(sku: string): Promise<boolean>;
     deleteProduct(sku: string): Promise<void>;
     getProductBySKU(sku: string): Promise<Product>;
@@ -22,6 +24,5 @@ export interface backendInterface {
     listAllProducts(): Promise<Array<Product>>;
     searchProductsByName(searchTerm: string): Promise<Array<Product>>;
     seedSampleData(): Promise<void>;
-    toText(product: Product): Promise<string>;
     updateProduct(sku: string, name: string, cost: number, description: string | null): Promise<void>;
 }

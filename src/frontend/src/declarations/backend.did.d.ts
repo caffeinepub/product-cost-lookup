@@ -21,6 +21,8 @@ export interface _SERVICE {
     [string, string, number, [] | [string]],
     undefined
   >,
+  'bulkImportProducts' : ActorMethod<[Array<Product>], undefined>,
+  'clearAllProducts' : ActorMethod<[], undefined>,
   'containsProduct' : ActorMethod<[string], boolean>,
   'deleteProduct' : ActorMethod<[string], undefined>,
   'getProductBySKU' : ActorMethod<[string], Product>,
@@ -28,7 +30,6 @@ export interface _SERVICE {
   'listAllProducts' : ActorMethod<[], Array<Product>>,
   'searchProductsByName' : ActorMethod<[string], Array<Product>>,
   'seedSampleData' : ActorMethod<[], undefined>,
-  'toText' : ActorMethod<[Product], string>,
   'updateProduct' : ActorMethod<
     [string, string, number, [] | [string]],
     undefined

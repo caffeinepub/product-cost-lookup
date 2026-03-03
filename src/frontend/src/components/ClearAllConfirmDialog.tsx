@@ -9,45 +9,31 @@ import {
 import { Button } from "@/components/ui/button";
 import { Loader2, Trash2 } from "lucide-react";
 
-interface DeleteConfirmDialogProps {
+interface ClearAllConfirmDialogProps {
   open: boolean;
   onClose: () => void;
   onConfirm: () => void;
-  productName: string;
-  productSku: string;
   isLoading?: boolean;
 }
 
-export function DeleteConfirmDialog({
+export function ClearAllConfirmDialog({
   open,
   onClose,
   onConfirm,
-  productName,
-  productSku,
   isLoading = false,
-}: DeleteConfirmDialogProps) {
+}: ClearAllConfirmDialogProps) {
   return (
     <AlertDialog open={open} onOpenChange={(v) => !v && onClose()}>
       <AlertDialogContent className="bg-card border-border sm:max-w-md">
         <AlertDialogHeader>
           <AlertDialogTitle className="font-display text-lg flex items-center gap-2">
             <Trash2 className="h-5 w-5 text-destructive" />
-            Delete Product?
+            Clear All Products?
           </AlertDialogTitle>
           <AlertDialogDescription className="text-muted-foreground text-sm leading-relaxed">
-            You're about to delete{" "}
-            <span className="font-semibold text-foreground">
-              {productName || productSku || "this product"}
-            </span>
-            {productName && productSku && !productSku.startsWith("__id_") && (
-              <>
-                {" "}
-                <span className="font-mono text-xs text-muted-foreground">
-                  ({productSku})
-                </span>
-              </>
-            )}
-            . This action cannot be undone.
+            This will permanently delete{" "}
+            <span className="font-semibold text-foreground">ALL products</span>{" "}
+            from the catalog. This action cannot be undone.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter className="gap-2">
@@ -55,7 +41,7 @@ export function DeleteConfirmDialog({
             variant="ghost"
             onClick={onClose}
             disabled={isLoading}
-            data-ocid="manage.cancel_button"
+            data-ocid="clear_all.cancel_button"
             className="text-muted-foreground hover:text-foreground"
           >
             Cancel
@@ -63,16 +49,16 @@ export function DeleteConfirmDialog({
           <Button
             onClick={onConfirm}
             disabled={isLoading}
-            data-ocid="manage.confirm_button"
+            data-ocid="clear_all.confirm_button"
             className="bg-destructive text-destructive-foreground hover:bg-destructive/90 font-semibold"
           >
             {isLoading ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Deleting...
+                Clearing...
               </>
             ) : (
-              "Delete Product"
+              "Clear All Products"
             )}
           </Button>
         </AlertDialogFooter>
