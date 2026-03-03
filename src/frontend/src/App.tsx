@@ -10,7 +10,6 @@ import {
   ChevronUp,
   DollarSign,
   Package,
-  Pencil,
   Plus,
   ScanBarcode,
   Search,
@@ -35,7 +34,6 @@ import {
   useProductCount,
   useSearchProducts,
   useSeedSampleData,
-  useUpdateProduct,
 } from "./hooks/useQueries";
 import type { Product } from "./hooks/useQueries";
 
@@ -59,7 +57,6 @@ export default function App() {
   const [addOpen, setAddOpen] = useState(false);
   const [csvOpen, setCsvOpen] = useState(false);
   const [clearAllOpen, setClearAllOpen] = useState(false);
-  const [editProduct, setEditProduct] = useState<Product | null>(null);
   const [deleteProduct, setDeleteProduct] = useState<Product | null>(null);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [seeded, setSeeded] = useState(false);
@@ -83,7 +80,6 @@ export default function App() {
 
   const seedMutation = useSeedSampleData();
   const addMutation = useAddProduct();
-  const updateMutation = useUpdateProduct();
   const deleteMutation = useDeleteProduct();
   const clearAllMutation = useClearAllProducts();
 
@@ -142,26 +138,6 @@ export default function App() {
       });
     },
     [addMutation],
-  );
-
-  const handleUpdate = useCallback(
-    async (data: {
-      sku: string;
-      name: string;
-      cost: number;
-      description: string | null;
-    }) => {
-      await updateMutation.mutateAsync(data, {
-        onSuccess: () => {
-          toast.success(`Product "${data.name || data.sku}" updated`);
-          setEditProduct(null);
-        },
-        onError: (err) => {
-          toast.error(`Failed to update: ${(err as Error).message}`);
-        },
-      });
-    },
-    [updateMutation],
   );
 
   const handleDelete = useCallback(async () => {
@@ -310,7 +286,7 @@ export default function App() {
         {/* Table */}
         <div className="rounded-md border border-border overflow-hidden bg-card/50">
           {/* Table header */}
-          <div className="grid grid-cols-[1fr_2fr_auto_auto] gap-0 bg-muted/30 border-b border-border text-[11px] font-medium text-muted-foreground uppercase tracking-widest">
+          <div className="grid grid-cols-[1fr_2fr_auto] gap-0 bg-muted/30 border-b border-border text-[11px] font-medium text-muted-foreground uppercase tracking-widest">
             <button
               type="button"
               onClick={() => toggleSort("sku")}
@@ -338,7 +314,6 @@ export default function App() {
               Cost
               <SortIcon col="cost" />
             </button>
-            <div className="px-4 py-3 text-right">Actions</div>
           </div>
 
           {/* Loading */}
@@ -350,11 +325,10 @@ export default function App() {
               {(["sk1", "sk2", "sk3", "sk4", "sk5"] as const).map((k) => (
                 <div
                   key={k}
-                  className="grid grid-cols-[1fr_2fr_auto_auto] gap-0 px-4 py-3.5"
+                  className="grid grid-cols-[1fr_2fr_auto] gap-0 px-4 py-3.5"
                 >
                   <Skeleton className="h-4 w-20 bg-muted/50" />
                   <Skeleton className="h-4 w-40 bg-muted/50" />
-                  <Skeleton className="h-4 w-16 bg-muted/50" />
                   <Skeleton className="h-4 w-16 bg-muted/50" />
                 </div>
               ))}
@@ -423,7 +397,7 @@ export default function App() {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, x: -8 }}
                     transition={{ duration: 0.15, delay: index * 0.03 }}
-                    className="grid grid-cols-[1fr_2fr_auto_auto] gap-0 items-center px-4 py-3.5 card-hover group"
+                    className="grid grid-cols-[1fr_2fr_auto] gap-0 items-center px-4 py-3.5 card-hover group"
                   >
                     {/* SKU */}
                     <div className="pr-2">
@@ -469,30 +443,6 @@ export default function App() {
                           {formatCost(product.cost)}
                         </span>
                       )}
-                    </div>
-
-                    {/* Actions */}
-                    <div className="flex items-center gap-1.5">
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => setEditProduct(product)}
-                        data-ocid={`product.edit_button.${index + 1}`}
-                        className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground hover:bg-muted/50"
-                        aria-label={`Edit ${product.name}`}
-                      >
-                        <Pencil className="h-3 w-3" />
-                      </Button>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => setDeleteProduct(product)}
-                        data-ocid={`product.delete_button.${index + 1}`}
-                        className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                        aria-label={`Delete ${product.name}`}
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
                     </div>
                   </motion.div>
                 ))}
@@ -558,16 +508,6 @@ export default function App() {
         onSubmit={handleAdd}
         mode="add"
         isLoading={addMutation.isPending}
-      />
-
-      {/* Edit Product Dialog */}
-      <ProductForm
-        open={!!editProduct}
-        onClose={() => setEditProduct(null)}
-        onSubmit={handleUpdate}
-        initialData={editProduct}
-        mode="edit"
-        isLoading={updateMutation.isPending}
       />
 
       {/* Delete Confirm Dialog */}
