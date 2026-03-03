@@ -8,7 +8,6 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { Product } from "../hooks/useQueries";
@@ -21,7 +20,7 @@ interface ProductFormProps {
     name: string;
     cost: number;
     description: string | null;
-  }) => Promise<void>;
+  }) => Promise<void>; // description kept in type for backend compatibility
   initialData?: Product | null;
   isLoading?: boolean;
   mode: "add" | "edit";
@@ -38,7 +37,6 @@ export function ProductForm({
   const [sku, setSku] = useState("");
   const [name, setName] = useState("");
   const [cost, setCost] = useState("");
-  const [description, setDescription] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -48,12 +46,10 @@ export function ProductForm({
         setName(initialData.name);
         // Show blank in form if cost is -1 (multiple variants sentinel)
         setCost(initialData.cost === -1 ? "" : initialData.cost.toString());
-        setDescription(initialData.description ?? "");
       } else {
         setSku("");
         setName("");
         setCost("");
-        setDescription("");
       }
       setErrors({});
     }
@@ -86,7 +82,7 @@ export function ProductForm({
       sku: sku.trim(),
       name: name.trim(),
       cost: costValue,
-      description: description.trim() || null,
+      description: null,
     });
   }
 
@@ -168,26 +164,6 @@ export function ProductForm({
             {errors.cost && (
               <p className="text-xs text-destructive">{errors.cost}</p>
             )}
-          </div>
-
-          <div className="space-y-1.5">
-            <Label
-              htmlFor="product-description"
-              className="text-xs font-medium text-muted-foreground uppercase tracking-widest"
-            >
-              Description{" "}
-              <span className="normal-case tracking-normal text-muted-foreground/60">
-                (optional)
-              </span>
-            </Label>
-            <Textarea
-              id="product-description"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Brief product description..."
-              rows={3}
-              className="bg-muted/50 border-border focus:border-primary resize-none text-sm"
-            />
           </div>
 
           <DialogFooter className="gap-2 pt-2">

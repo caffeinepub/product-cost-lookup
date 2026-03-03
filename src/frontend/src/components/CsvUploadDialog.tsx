@@ -218,12 +218,12 @@ export function CsvUploadDialog({ open, onClose }: CsvUploadDialogProps) {
               Expected CSV format
             </p>
             <code className="text-xs font-mono text-primary/90 block">
-              sku,name,cost,description
+              sku,name,cost
             </code>
             <p className="text-[11px] text-muted-foreground/70 mt-1">
-              First row is always treated as a header and skipped. SKU, cost,
-              and description are optional. Leave cost blank if the product has
-              multiple variants.
+              First row is always treated as a header and skipped. SKU and cost
+              are optional. Leave cost blank if the product has multiple
+              variants.
             </p>
           </div>
 
@@ -349,9 +349,6 @@ export function CsvUploadDialog({ open, onClose }: CsvUploadDialogProps) {
                           <th className="text-right px-3 py-2 font-medium text-muted-foreground uppercase tracking-wider text-[10px]">
                             Cost (₹)
                           </th>
-                          <th className="text-left px-3 py-2 font-medium text-muted-foreground uppercase tracking-wider text-[10px]">
-                            Description
-                          </th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-border/40">
@@ -380,9 +377,6 @@ export function CsvUploadDialog({ open, onClose }: CsvUploadDialogProps) {
                                 ) : (
                                   r.data!.cost.toFixed(2)
                                 )}
-                              </td>
-                              <td className="px-3 py-2 text-muted-foreground truncate max-w-[120px]">
-                                {r.data!.description ?? "—"}
                               </td>
                             </tr>
                           ))}

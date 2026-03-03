@@ -415,7 +415,7 @@ export default function App() {
                       )}
                     </div>
 
-                    {/* Name + Description */}
+                    {/* Name */}
                     <div className="pr-4 min-w-0">
                       <p className="text-sm font-medium text-foreground truncate">
                         {product.name || (
@@ -424,11 +424,6 @@ export default function App() {
                           </span>
                         )}
                       </p>
-                      {product.description && (
-                        <p className="text-xs text-muted-foreground/70 truncate mt-0.5">
-                          {product.description}
-                        </p>
-                      )}
                     </div>
 
                     {/* Cost */}
