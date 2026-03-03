@@ -42,15 +42,8 @@ function parseCSV(raw: string): ParsedRow[] {
     // Parse CSV respecting quoted fields
     const fields = parseCSVLine(line);
 
-    if (fields.length < 2) {
-      return {
-        rowIndex,
-        error: `Row ${rowIndex}: expected at least 2 columns (sku, name), got ${fields.length}`,
-      };
-    }
-
-    const sku = fields[0].trim();
-    const name = fields[1].trim();
+    const sku = fields[0]?.trim() ?? "";
+    const name = fields[1]?.trim() ?? "";
     const costRaw = fields[2]?.trim() ?? "";
     const description = fields[3]?.trim() || undefined;
 
@@ -372,7 +365,7 @@ export function CsvUploadDialog({ open, onClose }: CsvUploadDialogProps) {
                               <td className="px-3 py-2 text-right font-mono tabular-nums text-foreground">
                                 {r.data!.cost === -1 ? (
                                   <span className="text-muted-foreground italic text-[10px] normal-nums">
-                                    Multiple variants
+                                    might have variants
                                   </span>
                                 ) : (
                                   r.data!.cost.toFixed(2)

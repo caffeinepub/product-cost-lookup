@@ -430,8 +430,7 @@ export default function App() {
                     <div className="pr-6 text-right tabular-nums">
                       {product.cost === -1 ? (
                         <span className="text-xs text-amber-500/80 italic leading-tight block max-w-[160px] text-right">
-                          Product has multiple variants, please check your
-                          master copy
+                          product might have variants, check master copy
                         </span>
                       ) : (
                         <span className="cost-figure text-sm">
