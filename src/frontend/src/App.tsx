@@ -24,6 +24,7 @@ import { BarcodeScanner } from "./components/BarcodeScanner";
 import { ClearAllConfirmDialog } from "./components/ClearAllConfirmDialog";
 import { CsvUploadDialog } from "./components/CsvUploadDialog";
 import { DeleteConfirmDialog } from "./components/DeleteConfirmDialog";
+import { ProductDetailView } from "./components/ProductDetailView";
 import { ProductForm } from "./components/ProductForm";
 import { useActor } from "./hooks/useActor";
 import {
@@ -60,6 +61,7 @@ export default function App() {
   const [deleteProduct, setDeleteProduct] = useState<Product | null>(null);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [seeded, setSeeded] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
   const { actor } = useActor();
 
@@ -182,9 +184,14 @@ export default function App() {
       <header className="sticky top-0 z-20 bg-background/90 backdrop-blur-md header-glow border-b border-border">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-md bg-primary/10 border border-primary/20 flex items-center justify-center">
+            <button
+              type="button"
+              onClick={() => setSelectedProduct(null)}
+              className="w-8 h-8 rounded-md bg-primary/10 border border-primary/20 flex items-center justify-center hover:bg-primary/20 transition-colors"
+              aria-label="Go to product list"
+            >
               <BarChart3 className="h-4 w-4 text-primary" />
-            </div>
+            </button>
             <div>
               <h1 className="font-display text-base font-bold tracking-tight leading-none">
                 Product Cost Lookup
@@ -197,273 +204,298 @@ export default function App() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {totalCount !== undefined && totalCount > BigInt(0) && (
+            {!selectedProduct &&
+              totalCount !== undefined &&
+              totalCount > BigInt(0) && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setClearAllOpen(true)}
+                  data-ocid="manage.clear_all_button"
+                  className="border-destructive/40 text-destructive/70 hover:text-destructive hover:border-destructive hover:bg-destructive/10 gap-1.5 text-xs font-medium transition-colors"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Clear All
+                </Button>
+              )}
+            {!selectedProduct && (
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => setClearAllOpen(true)}
-                data-ocid="manage.clear_all_button"
-                className="border-destructive/40 text-destructive/70 hover:text-destructive hover:border-destructive hover:bg-destructive/10 gap-1.5 text-xs font-medium transition-colors"
+                onClick={() => setCsvOpen(true)}
+                data-ocid="csv_upload.open_modal_button"
+                className="border-border/60 text-muted-foreground hover:text-foreground hover:border-primary/40 gap-1.5 text-xs font-medium"
               >
-                <Trash2 className="h-3.5 w-3.5" />
-                Clear All
+                <Upload className="h-3.5 w-3.5" />
+                Import CSV
               </Button>
             )}
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setCsvOpen(true)}
-              data-ocid="csv_upload.open_modal_button"
-              className="border-border/60 text-muted-foreground hover:text-foreground hover:border-primary/40 gap-1.5 text-xs font-medium"
-            >
-              <Upload className="h-3.5 w-3.5" />
-              Import CSV
-            </Button>
-            <Button
-              size="sm"
-              onClick={() => setAddOpen(true)}
-              data-ocid="manage.add_button"
-              className="bg-primary text-primary-foreground hover:bg-primary/90 font-semibold gap-1.5 text-xs"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              Add Product
-            </Button>
+            {!selectedProduct && (
+              <Button
+                size="sm"
+                onClick={() => setAddOpen(true)}
+                data-ocid="manage.add_button"
+                className="bg-primary text-primary-foreground hover:bg-primary/90 font-semibold gap-1.5 text-xs"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Add Product
+              </Button>
+            )}
           </div>
         </div>
       </header>
 
+      {/* Product Detail View */}
+      <AnimatePresence mode="wait">
+        {selectedProduct && (
+          <ProductDetailView
+            key="detail"
+            product={selectedProduct}
+            onBack={() => setSelectedProduct(null)}
+          />
+        )}
+      </AnimatePresence>
+
       {/* Main */}
-      <main className="max-w-5xl mx-auto px-4 sm:px-6 py-8 space-y-6">
-        {/* Search bar */}
-        <div className="space-y-1.5">
-          <div className="relative flex items-center search-glow rounded-md transition-all duration-200">
-            <Search className="absolute left-3.5 h-4 w-4 text-muted-foreground pointer-events-none" />
-            <Input
-              data-ocid="search.search_input"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search by SKU or product name..."
-              className={`pl-10 h-11 bg-card border-border focus-visible:border-primary text-sm font-sans placeholder:text-muted-foreground/60 ${searchTerm ? "pr-16" : "pr-10"}`}
-              autoComplete="off"
-              spellCheck={false}
-            />
-            {/* Barcode scan button */}
-            <motion.button
-              data-ocid="search.scan_button"
-              onClick={() => setScannerOpen(true)}
-              className={`absolute ${searchTerm ? "right-8" : "right-3"} h-6 w-6 flex items-center justify-center text-muted-foreground hover:text-primary transition-all duration-150`}
-              aria-label="Scan barcode"
-              title="Scan barcode or QR code"
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.9 }}
-            >
-              <ScanBarcode className="h-4 w-4" />
-            </motion.button>
-            <AnimatePresence>
-              {searchTerm && (
-                <motion.button
-                  initial={{ opacity: 0, scale: 0.8 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.8 }}
-                  onClick={() => setSearchTerm("")}
-                  className="absolute right-3 text-muted-foreground hover:text-foreground transition-colors text-xs font-mono"
-                >
-                  ✕
-                </motion.button>
-              )}
-            </AnimatePresence>
-          </div>
-          {isSearching && (
-            <p className="text-xs text-muted-foreground pl-1">
-              Results for{" "}
-              <span className="text-primary font-mono">
-                "{debouncedSearch}"
-              </span>
-            </p>
-          )}
-        </div>
-
-        {/* Table */}
-        <div className="rounded-md border border-border overflow-hidden bg-card/50">
-          {/* Table header */}
-          <div className="grid grid-cols-[1fr_2fr_auto] gap-0 bg-muted/30 border-b border-border text-[11px] font-medium text-muted-foreground uppercase tracking-widest">
-            <button
-              type="button"
-              onClick={() => toggleSort("sku")}
-              className="flex items-center gap-1.5 px-4 py-3 text-left hover:text-foreground transition-colors"
-            >
-              <Tag className="h-3 w-3" />
-              SKU
-              <SortIcon col="sku" />
-            </button>
-            <button
-              type="button"
-              onClick={() => toggleSort("name")}
-              className="flex items-center gap-1.5 px-4 py-3 text-left hover:text-foreground transition-colors"
-            >
-              <Package className="h-3 w-3" />
-              Product Name
-              <SortIcon col="name" />
-            </button>
-            <button
-              type="button"
-              onClick={() => toggleSort("cost")}
-              className="flex items-center gap-1.5 px-4 py-3 text-right hover:text-foreground transition-colors"
-            >
-              <DollarSign className="h-3 w-3" />
-              Cost
-              <SortIcon col="cost" />
-            </button>
-          </div>
-
-          {/* Loading */}
-          {isLoading && (
-            <div
-              data-ocid="product.loading_state"
-              className="divide-y divide-border/50"
-            >
-              {(["sk1", "sk2", "sk3", "sk4", "sk5"] as const).map((k) => (
-                <div
-                  key={k}
-                  className="grid grid-cols-[1fr_2fr_auto] gap-0 px-4 py-3.5"
-                >
-                  <Skeleton className="h-4 w-20 bg-muted/50" />
-                  <Skeleton className="h-4 w-40 bg-muted/50" />
-                  <Skeleton className="h-4 w-16 bg-muted/50" />
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Error */}
-          {isError && !isLoading && (
-            <div
-              data-ocid="product.error_state"
-              className="flex flex-col items-center gap-3 py-16 text-center"
-            >
-              <AlertCircle className="h-8 w-8 text-destructive/60" />
-              <div>
-                <p className="text-sm font-medium text-destructive">
-                  Failed to load products
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Check your connection and try again.
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* Empty state */}
-          {!isLoading && !isError && sorted.length === 0 && (
-            <div
-              data-ocid="product.empty_state"
-              className="flex flex-col items-center gap-4 py-16 text-center"
-            >
-              <div className="w-12 h-12 rounded-full border border-border bg-muted/30 flex items-center justify-center">
-                <Package className="h-5 w-5 text-muted-foreground/50" />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-foreground">
-                  {isSearching ? "No products found" : "No products in catalog"}
-                </p>
-                <p className="text-xs text-muted-foreground mt-1 max-w-xs">
-                  {isSearching
-                    ? `No results for "${debouncedSearch}". Try a different SKU or partial name.`
-                    : "Add your first product to get started."}
-                </p>
-              </div>
-              {!isSearching && (
-                <Button
-                  size="sm"
-                  onClick={() => setAddOpen(true)}
-                  className="bg-primary/10 text-primary hover:bg-primary/20 border border-primary/20 text-xs"
-                >
-                  <Plus className="h-3.5 w-3.5 mr-1.5" />
-                  Add Product
-                </Button>
-              )}
-            </div>
-          )}
-
-          {/* Product rows */}
-          {!isLoading && !isError && sorted.length > 0 && (
-            <div data-ocid="product.list" className="divide-y divide-border/50">
-              <AnimatePresence initial={false}>
-                {sorted.map((product, index) => (
-                  <motion.div
-                    key={product.sku || product.name}
-                    data-ocid={`product.item.${index + 1}`}
-                    initial={{ opacity: 0, y: -4 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, x: -8 }}
-                    transition={{ duration: 0.15, delay: index * 0.03 }}
-                    className="grid grid-cols-[1fr_2fr_auto] gap-0 items-center px-4 py-3.5 card-hover group"
+      {!selectedProduct && (
+        <main className="max-w-5xl mx-auto px-4 sm:px-6 py-8 space-y-6">
+          {/* Search bar */}
+          <div className="space-y-1.5">
+            <div className="relative flex items-center search-glow rounded-md transition-all duration-200">
+              <Search className="absolute left-3.5 h-4 w-4 text-muted-foreground pointer-events-none" />
+              <Input
+                data-ocid="search.search_input"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Search by SKU or product name..."
+                className={`pl-10 h-11 bg-card border-border focus-visible:border-primary text-sm font-sans placeholder:text-muted-foreground/60 ${searchTerm ? "pr-16" : "pr-10"}`}
+                autoComplete="off"
+                spellCheck={false}
+              />
+              {/* Barcode scan button */}
+              <motion.button
+                data-ocid="search.scan_button"
+                onClick={() => setScannerOpen(true)}
+                className={`absolute ${searchTerm ? "right-8" : "right-3"} h-6 w-6 flex items-center justify-center text-muted-foreground hover:text-primary transition-all duration-150`}
+                aria-label="Scan barcode"
+                title="Scan barcode or QR code"
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+              >
+                <ScanBarcode className="h-4 w-4" />
+              </motion.button>
+              <AnimatePresence>
+                {searchTerm && (
+                  <motion.button
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.8 }}
+                    onClick={() => setSearchTerm("")}
+                    className="absolute right-3 text-muted-foreground hover:text-foreground transition-colors text-xs font-mono"
                   >
-                    {/* SKU */}
-                    <div className="pr-2">
-                      {product.sku.trim() ? (
-                        <Badge
-                          variant="outline"
-                          className="sku-badge border-border/70 text-muted-foreground bg-muted/20 group-hover:border-primary/30 group-hover:text-primary/80 transition-colors"
-                        >
-                          {product.sku}
-                        </Badge>
-                      ) : (
-                        <span className="text-muted-foreground/40 text-xs font-mono">
-                          —
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Name */}
-                    <div className="pr-4 min-w-0">
-                      <p className="text-sm font-medium text-foreground truncate">
-                        {product.name || (
-                          <span className="text-muted-foreground/60 italic">
-                            (no name)
-                          </span>
-                        )}
-                      </p>
-                    </div>
-
-                    {/* Cost */}
-                    <div className="pr-6 text-right tabular-nums">
-                      {product.cost === -1 ? (
-                        <span className="text-xs text-amber-500/80 italic leading-tight block max-w-[160px] text-right">
-                          product might have variants, check master copy
-                        </span>
-                      ) : (
-                        <span className="cost-figure text-sm">
-                          {formatCost(product.cost)}
-                        </span>
-                      )}
-                    </div>
-                  </motion.div>
-                ))}
+                    ✕
+                  </motion.button>
+                )}
               </AnimatePresence>
             </div>
-          )}
-
-          {/* Footer row: result count */}
-          {!isLoading && !isError && sorted.length > 0 && (
-            <div className="px-4 py-2.5 border-t border-border/50 bg-muted/20 flex items-center justify-between">
-              <p className="text-[11px] text-muted-foreground font-mono">
-                {sorted.length} result{sorted.length !== 1 ? "s" : ""}
-                {isSearching && ` for "${debouncedSearch}"`}
+            {isSearching && (
+              <p className="text-xs text-muted-foreground pl-1">
+                Results for{" "}
+                <span className="text-primary font-mono">
+                  "{debouncedSearch}"
+                </span>
               </p>
-              {isSearching && (
-                <button
-                  type="button"
-                  onClick={() => setSearchTerm("")}
-                  className="text-[11px] text-primary hover:text-primary/80 font-mono transition-colors"
-                >
-                  Clear search →
-                </button>
-              )}
+            )}
+          </div>
+
+          {/* Table */}
+          <div className="rounded-md border border-border overflow-hidden bg-card/50">
+            {/* Table header */}
+            <div className="grid grid-cols-[1fr_2fr_auto] gap-0 bg-muted/30 border-b border-border text-[11px] font-medium text-muted-foreground uppercase tracking-widest">
+              <button
+                type="button"
+                onClick={() => toggleSort("sku")}
+                className="flex items-center gap-1.5 px-4 py-3 text-left hover:text-foreground transition-colors"
+              >
+                <Tag className="h-3 w-3" />
+                SKU
+                <SortIcon col="sku" />
+              </button>
+              <button
+                type="button"
+                onClick={() => toggleSort("name")}
+                className="flex items-center gap-1.5 px-4 py-3 text-left hover:text-foreground transition-colors"
+              >
+                <Package className="h-3 w-3" />
+                Product Name
+                <SortIcon col="name" />
+              </button>
+              <button
+                type="button"
+                onClick={() => toggleSort("cost")}
+                className="flex items-center gap-1.5 px-4 py-3 text-right hover:text-foreground transition-colors"
+              >
+                <DollarSign className="h-3 w-3" />
+                Cost
+                <SortIcon col="cost" />
+              </button>
             </div>
-          )}
-        </div>
-      </main>
+
+            {/* Loading */}
+            {isLoading && (
+              <div
+                data-ocid="product.loading_state"
+                className="divide-y divide-border/50"
+              >
+                {(["sk1", "sk2", "sk3", "sk4", "sk5"] as const).map((k) => (
+                  <div
+                    key={k}
+                    className="grid grid-cols-[1fr_2fr_auto] gap-0 px-4 py-3.5"
+                  >
+                    <Skeleton className="h-4 w-20 bg-muted/50" />
+                    <Skeleton className="h-4 w-40 bg-muted/50" />
+                    <Skeleton className="h-4 w-16 bg-muted/50" />
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Error */}
+            {isError && !isLoading && (
+              <div
+                data-ocid="product.error_state"
+                className="flex flex-col items-center gap-3 py-16 text-center"
+              >
+                <AlertCircle className="h-8 w-8 text-destructive/60" />
+                <div>
+                  <p className="text-sm font-medium text-destructive">
+                    Failed to load products
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Check your connection and try again.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Empty state */}
+            {!isLoading && !isError && sorted.length === 0 && (
+              <div
+                data-ocid="product.empty_state"
+                className="flex flex-col items-center gap-4 py-16 text-center"
+              >
+                <div className="w-12 h-12 rounded-full border border-border bg-muted/30 flex items-center justify-center">
+                  <Package className="h-5 w-5 text-muted-foreground/50" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-foreground">
+                    {isSearching
+                      ? "No products found"
+                      : "No products in catalog"}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1 max-w-xs">
+                    {isSearching
+                      ? `No results for "${debouncedSearch}". Try a different SKU or partial name.`
+                      : "Add your first product to get started."}
+                  </p>
+                </div>
+                {!isSearching && (
+                  <Button
+                    size="sm"
+                    onClick={() => setAddOpen(true)}
+                    className="bg-primary/10 text-primary hover:bg-primary/20 border border-primary/20 text-xs"
+                  >
+                    <Plus className="h-3.5 w-3.5 mr-1.5" />
+                    Add Product
+                  </Button>
+                )}
+              </div>
+            )}
+
+            {/* Product rows */}
+            {!isLoading && !isError && sorted.length > 0 && (
+              <div
+                data-ocid="product.list"
+                className="divide-y divide-border/50"
+              >
+                <AnimatePresence initial={false}>
+                  {sorted.map((product, index) => (
+                    <motion.div
+                      key={product.sku || product.name}
+                      data-ocid={`product.item.${index + 1}`}
+                      initial={{ opacity: 0, y: -4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, x: -8 }}
+                      transition={{ duration: 0.15, delay: index * 0.03 }}
+                      onClick={() => setSelectedProduct(product)}
+                      className="grid grid-cols-[1fr_2fr_auto] gap-0 items-center px-4 py-3.5 card-hover group cursor-pointer"
+                    >
+                      {/* SKU */}
+                      <div className="pr-2">
+                        {product.sku.trim() ? (
+                          <Badge
+                            variant="outline"
+                            className="sku-badge border-border/70 text-muted-foreground bg-muted/20 group-hover:border-primary/30 group-hover:text-primary/80 transition-colors"
+                          >
+                            {product.sku}
+                          </Badge>
+                        ) : (
+                          <span className="text-muted-foreground/40 text-xs font-mono">
+                            —
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Name — clickable with hover underline hint */}
+                      <div className="pr-4 min-w-0">
+                        <p className="text-sm font-medium text-foreground truncate group-hover:text-primary group-hover:underline underline-offset-2 decoration-primary/50 transition-colors">
+                          {product.name || (
+                            <span className="text-muted-foreground/60 italic no-underline">
+                              (no name)
+                            </span>
+                          )}
+                        </p>
+                      </div>
+
+                      {/* Cost */}
+                      <div className="pr-6 text-right tabular-nums">
+                        {product.cost === -1 ? (
+                          <span className="text-xs text-amber-500/80 italic leading-tight block max-w-[160px] text-right">
+                            product might have variants, check master copy
+                          </span>
+                        ) : (
+                          <span className="cost-figure text-sm">
+                            {formatCost(product.cost)}
+                          </span>
+                        )}
+                      </div>
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
+              </div>
+            )}
+
+            {/* Footer row: result count */}
+            {!isLoading && !isError && sorted.length > 0 && (
+              <div className="px-4 py-2.5 border-t border-border/50 bg-muted/20 flex items-center justify-between">
+                <p className="text-[11px] text-muted-foreground font-mono">
+                  {sorted.length} result{sorted.length !== 1 ? "s" : ""}
+                  {isSearching && ` for "${debouncedSearch}"`}
+                </p>
+                {isSearching && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchTerm("")}
+                    className="text-[11px] text-primary hover:text-primary/80 font-mono transition-colors"
+                  >
+                    Clear search →
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        </main>
+      )}
 
       {/* Footer */}
       <footer className="border-t border-border/50 mt-auto">
