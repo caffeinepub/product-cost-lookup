@@ -14,6 +14,8 @@ export function useListAllProducts() {
       return actor.listAllProducts();
     },
     enabled: !!actor && !isFetching,
+    retry: 3,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 8000),
   });
 }
 
@@ -61,6 +63,8 @@ export function useSearchProducts(searchTerm: string) {
       return combined;
     },
     enabled: !!actor && !isFetching,
+    retry: 3,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 8000),
   });
 }
 
@@ -73,6 +77,8 @@ export function useProductCount() {
       return actor.getProductCount();
     },
     enabled: !!actor && !isFetching,
+    retry: 3,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 8000),
   });
 }
 

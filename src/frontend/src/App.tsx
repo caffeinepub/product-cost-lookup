@@ -11,6 +11,7 @@ import {
   DollarSign,
   Package,
   Plus,
+  RefreshCw,
   ScanBarcode,
   Search,
   Tag,
@@ -26,6 +27,7 @@ import { CsvUploadDialog } from "./components/CsvUploadDialog";
 import { DeleteConfirmDialog } from "./components/DeleteConfirmDialog";
 import { ProductDetailView } from "./components/ProductDetailView";
 import { ProductForm } from "./components/ProductForm";
+import { QuotesView } from "./components/QuotesView";
 import { useActor } from "./hooks/useActor";
 import {
   useAddProduct,
@@ -62,6 +64,7 @@ export default function App() {
   const [scannerOpen, setScannerOpen] = useState(false);
   const [seeded, setSeeded] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [showQuotes, setShowQuotes] = useState(false);
 
   const { actor } = useActor();
 
@@ -186,7 +189,10 @@ export default function App() {
           <div className="flex items-center gap-3">
             <button
               type="button"
-              onClick={() => setSelectedProduct(null)}
+              onClick={() => {
+                setSelectedProduct(null);
+                setShowQuotes(false);
+              }}
               className="w-8 h-8 rounded-md bg-primary/10 border border-primary/20 flex items-center justify-center hover:bg-primary/20 transition-colors"
               aria-label="Go to product list"
             >
@@ -247,11 +253,26 @@ export default function App() {
 
       {/* Product Detail View */}
       <AnimatePresence mode="wait">
-        {selectedProduct && (
+        {selectedProduct && !showQuotes && (
           <ProductDetailView
             key="detail"
             product={selectedProduct}
-            onBack={() => setSelectedProduct(null)}
+            onBack={() => {
+              setSelectedProduct(null);
+              setShowQuotes(false);
+            }}
+            onShowQuotes={() => setShowQuotes(true)}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Quotes View */}
+      <AnimatePresence mode="wait">
+        {selectedProduct && showQuotes && (
+          <QuotesView
+            key="quotes"
+            product={selectedProduct}
+            onBack={() => setShowQuotes(false)}
           />
         )}
       </AnimatePresence>
@@ -375,6 +396,15 @@ export default function App() {
                     Check your connection and try again.
                   </p>
                 </div>
+                <Button
+                  size="sm"
+                  onClick={() => activeQuery.refetch()}
+                  data-ocid="product.retry_button"
+                  className="bg-primary/10 text-primary hover:bg-primary/20 border border-primary/20 text-xs gap-1.5"
+                >
+                  <RefreshCw className="h-3.5 w-3.5" />
+                  Retry
+                </Button>
               </div>
             )}
 
@@ -427,7 +457,10 @@ export default function App() {
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, x: -8 }}
                       transition={{ duration: 0.15, delay: index * 0.03 }}
-                      onClick={() => setSelectedProduct(product)}
+                      onClick={() => {
+                        setSelectedProduct(product);
+                        setShowQuotes(false);
+                      }}
                       className="grid grid-cols-[1fr_2fr_auto] gap-0 items-center px-4 py-3.5 card-hover group cursor-pointer"
                     >
                       {/* SKU */}

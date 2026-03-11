@@ -5,10 +5,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useQRScanner } from "@/qr-code/useQRScanner";
 import { AlertCircle, Camera, FlipHorizontal, X } from "lucide-react";
 import { motion } from "motion/react";
-import { useEffect } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 interface BarcodeScannerProps {
   open: boolean;
@@ -16,53 +15,298 @@ interface BarcodeScannerProps {
   onScan: (value: string) => void;
 }
 
+declare global {
+  interface Window {
+    BarcodeDetector: any;
+    ZXing: any;
+  }
+}
+
 const isMobile =
   /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
     navigator.userAgent,
   );
 
-export function BarcodeScanner({ open, onClose, onScan }: BarcodeScannerProps) {
-  const {
-    qrResults,
-    isScanning,
-    isLoading,
-    isActive,
-    error,
-    startScanning,
-    stopScanning,
-    switchCamera,
-    clearResults,
-    videoRef,
-    canvasRef,
-  } = useQRScanner({
-    facingMode: "environment",
-    scanInterval: 100,
-    maxResults: 1,
-  });
+// ZXing CDN fallback — loaded once and cached
+const ZXING_CDN =
+  "https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js";
 
-  // Start scanning when dialog opens
-  // biome-ignore lint/correctness/useExhaustiveDependencies: intentionally run only when open changes
+type ScanEngine = "native" | "zxing" | "none";
+
+export function BarcodeScanner({ open, onClose, onScan }: BarcodeScannerProps) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const animFrameRef = useRef<number | null>(null);
+  const lastScanRef = useRef<string>("");
+  const detectorRef = useRef<any>(null);
+  const zxingReaderRef = useRef<any>(null);
+  const mountedRef = useRef(true);
+  const engineRef = useRef<ScanEngine>("none");
+
+  const [isLoading, setIsLoading] = useState(false);
+  const [isScanning, setIsScanning] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+  const [facingMode, setFacingMode] = useState<"environment" | "user">(
+    "environment",
+  );
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  const stopScan = useCallback(() => {
+    if (animFrameRef.current) {
+      cancelAnimationFrame(animFrameRef.current);
+      animFrameRef.current = null;
+    }
+    if (streamRef.current) {
+      for (const track of streamRef.current.getTracks()) {
+        track.stop();
+      }
+      streamRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+    setIsScanning(false);
+  }, []);
+
+  const scanFrameWithNative = useCallback(
+    (canvas: HTMLCanvasElement) => {
+      detectorRef.current
+        .detect(canvas)
+        .then((results: any[]) => {
+          if (!mountedRef.current) return;
+          for (const result of results) {
+            if (result.rawValue && result.rawValue !== lastScanRef.current) {
+              lastScanRef.current = result.rawValue;
+              onScan(result.rawValue);
+              return;
+            }
+          }
+          if (mountedRef.current) {
+            animFrameRef.current = requestAnimationFrame(tick);
+          }
+        })
+        .catch(() => {
+          if (mountedRef.current) {
+            animFrameRef.current = requestAnimationFrame(tick);
+          }
+        });
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [onScan],
+  );
+
+  const scanFrameWithZXing = useCallback(
+    (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement) => {
+      try {
+        const ZXing = window.ZXing;
+        if (!ZXing || !zxingReaderRef.current) {
+          animFrameRef.current = requestAnimationFrame(tick);
+          return;
+        }
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const luminanceSource = new ZXing.RGBLuminanceSource(
+          imageData.data,
+          canvas.width,
+          canvas.height,
+        );
+        const binaryBitmap = new ZXing.BinaryBitmap(
+          new ZXing.HybridBinarizer(luminanceSource),
+        );
+        const result = zxingReaderRef.current.decode(binaryBitmap);
+        if (result) {
+          const text = result.getText();
+          if (text && text !== lastScanRef.current) {
+            lastScanRef.current = text;
+            onScan(text);
+            return;
+          }
+        }
+      } catch (_) {
+        // NotFoundException — no barcode in frame, keep scanning
+      }
+      if (mountedRef.current) {
+        animFrameRef.current = requestAnimationFrame(tick);
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [onScan],
+  );
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: tick is self-referential
+  const tick = useCallback(() => {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas || video.readyState < video.HAVE_ENOUGH_DATA) {
+      animFrameRef.current = requestAnimationFrame(tick);
+      return;
+    }
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      animFrameRef.current = requestAnimationFrame(tick);
+      return;
+    }
+    ctx.drawImage(video, 0, 0);
+
+    const engine = engineRef.current;
+    if (engine === "native" && detectorRef.current) {
+      scanFrameWithNative(canvas);
+    } else if (engine === "zxing") {
+      scanFrameWithZXing(ctx, canvas);
+    } else {
+      // Engine not ready yet, try again next frame
+      animFrameRef.current = requestAnimationFrame(tick);
+    }
+  }, [scanFrameWithNative, scanFrameWithZXing]);
+
+  const loadZXingCdn = useCallback((): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      if (window.ZXing) {
+        resolve();
+        return;
+      }
+      const existing = document.querySelector(`script[src="${ZXING_CDN}"]`);
+      if (existing) {
+        existing.addEventListener("load", () => resolve());
+        existing.addEventListener("error", () =>
+          reject(new Error("ZXing CDN failed to load")),
+        );
+        return;
+      }
+      const script = document.createElement("script");
+      script.src = ZXING_CDN;
+      script.async = true;
+      script.onload = () => resolve();
+      script.onerror = () => reject(new Error("ZXing CDN failed to load"));
+      document.head.appendChild(script);
+    });
+  }, []);
+
+  const initZXingReader = useCallback(async () => {
+    await loadZXingCdn();
+    const ZXing = window.ZXing;
+    if (!ZXing) throw new Error("ZXing not available after load");
+
+    const hints = new Map();
+    hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+    hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [
+      ZXing.BarcodeFormat.EAN_13,
+      ZXing.BarcodeFormat.EAN_8,
+      ZXing.BarcodeFormat.UPC_A,
+      ZXing.BarcodeFormat.UPC_E,
+      ZXing.BarcodeFormat.CODE_128,
+      ZXing.BarcodeFormat.CODE_39,
+      ZXing.BarcodeFormat.CODE_93,
+      ZXing.BarcodeFormat.CODABAR,
+      ZXing.BarcodeFormat.QR_CODE,
+      ZXing.BarcodeFormat.DATA_MATRIX,
+      ZXing.BarcodeFormat.PDF_417,
+    ]);
+    const reader = new ZXing.MultiFormatReader();
+    reader.setHints(hints);
+    zxingReaderRef.current = reader;
+    engineRef.current = "zxing";
+  }, [loadZXingCdn]);
+
+  const startScan = useCallback(
+    async (facing: "environment" | "user") => {
+      if (!mountedRef.current) return;
+      setIsLoading(true);
+      setError(null);
+      lastScanRef.current = "";
+      engineRef.current = "none";
+
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: facing,
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+          },
+        });
+        if (!mountedRef.current) {
+          for (const t of stream.getTracks()) t.stop();
+          return;
+        }
+        streamRef.current = stream;
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          await videoRef.current.play();
+        }
+
+        // Attempt to use native BarcodeDetector first
+        if ("BarcodeDetector" in window && window.BarcodeDetector) {
+          try {
+            const formats = await window.BarcodeDetector.getSupportedFormats();
+            detectorRef.current = new window.BarcodeDetector({ formats });
+            engineRef.current = "native";
+          } catch {
+            // Native failed — fall through to ZXing
+            engineRef.current = "none";
+          }
+        }
+
+        // Fallback to ZXing if native not available
+        if (engineRef.current === "none") {
+          try {
+            await initZXingReader();
+          } catch (_zxingErr) {
+            // ZXing also failed — show error
+            throw new Error(
+              "Barcode scanner unavailable on this browser. Try Chrome or Edge.",
+            );
+          }
+        }
+
+        if (mountedRef.current) {
+          setIsLoading(false);
+          setIsScanning(true);
+          animFrameRef.current = requestAnimationFrame(tick);
+        }
+      } catch (err) {
+        if (mountedRef.current) {
+          setIsLoading(false);
+          setError(
+            err instanceof Error ? err : new Error("Camera access denied"),
+          );
+        }
+      }
+    },
+    [initZXingReader, tick],
+  );
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional — only re-run when open changes
   useEffect(() => {
     if (open) {
-      clearResults();
-      startScanning();
+      startScan(facingMode);
     } else {
-      stopScanning();
+      stopScan();
     }
+    return () => {
+      stopScan();
+    };
   }, [open]);
 
-  // Fire callback when a scan result arrives
-  // biome-ignore lint/correctness/useExhaustiveDependencies: intentionally run only when qrResults changes
-  useEffect(() => {
-    if (qrResults.length > 0 && open) {
-      onScan(qrResults[0].data);
-    }
-  }, [qrResults]);
+  const handleSwitchCamera = useCallback(async () => {
+    stopScan();
+    const newFacing = facingMode === "environment" ? "user" : "environment";
+    setFacingMode(newFacing);
+    await startScan(newFacing);
+  }, [facingMode, startScan, stopScan]);
 
-  const handleClose = () => {
-    stopScanning();
+  const handleClose = useCallback(() => {
+    stopScan();
     onClose();
-  };
+  }, [stopScan, onClose]);
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && handleClose()}>
@@ -91,7 +335,7 @@ export function BarcodeScanner({ open, onClose, onScan }: BarcodeScannerProps) {
           <canvas ref={canvasRef} style={{ display: "none" }} />
 
           {/* Scanning overlay */}
-          {isActive && isScanning && (
+          {isScanning && (
             <div className="absolute inset-0 pointer-events-none">
               {/* Corner brackets */}
               <div className="absolute top-6 left-6 w-8 h-8 border-t-2 border-l-2 border-primary rounded-tl-sm" />
@@ -184,12 +428,12 @@ export function BarcodeScanner({ open, onClose, onScan }: BarcodeScannerProps) {
           </div>
 
           <div className="flex items-center gap-2">
-            {isMobile && isActive && !error && (
+            {isMobile && isScanning && !error && (
               <Button
                 data-ocid="scanner.switch_button"
                 size="sm"
                 variant="outline"
-                onClick={() => switchCamera()}
+                onClick={handleSwitchCamera}
                 disabled={isLoading}
                 className="h-8 border-border/60 text-muted-foreground hover:text-foreground gap-1.5 text-xs"
               >

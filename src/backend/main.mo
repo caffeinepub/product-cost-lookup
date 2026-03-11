@@ -37,6 +37,14 @@ actor {
     };
   };
 
+  // Upsert helper: remove existing key if present, then add
+  func upsert(key : Text, product : Product) {
+    if (products.containsKey(key)) {
+      products.remove(key);
+    };
+    products.add(key, product);
+  };
+
   func validateProductInfo(sku : Text, name : Text, cost : Float) {
     let trimmedSku = trimText(sku);
     let trimmedName = trimText(name);
@@ -56,33 +64,25 @@ actor {
   public shared ({ caller }) func addProduct(sku : Text, name : Text, cost : Float, description : ?Text) : async () {
     validateProductInfo(sku, name, cost);
     let key = makeKey(sku);
-    if (products.containsKey(key)) {
-      Runtime.trap("Product already exists: " # key);
-    };
     let product : Product = {
       sku = key;
       name;
       cost;
       description;
     };
-    products.add(key, product);
+    upsert(key, product);
   };
 
   public shared ({ caller }) func updateProduct(sku : Text, name : Text, cost : Float, description : ?Text) : async () {
     validateProductInfo(sku, name, cost);
     let key = trimText(sku);
-    switch (products.get(key)) {
-      case (null) { Runtime.trap("Product does not exist: " # key) };
-      case (?_) {
-        let updatedProduct : Product = {
-          sku = key;
-          name;
-          cost;
-          description;
-        };
-        products.add(key, updatedProduct);
-      };
+    let updatedProduct : Product = {
+      sku = key;
+      name;
+      cost;
+      description;
     };
+    upsert(key, updatedProduct);
   };
 
   public shared ({ caller }) func deleteProduct(sku : Text) : async () {
@@ -103,9 +103,13 @@ actor {
     };
   };
 
+  // Searches both product name AND SKU for the given term (case-insensitive, partial match)
   public query ({ caller }) func searchProductsByName(searchTerm : Text) : async [Product] {
     let lowerSearchTerm = searchTerm.toLower();
-    let filtered = products.values().toArray().filter(func(product) { product.name.toLower().contains(#text(lowerSearchTerm)) });
+    let filtered = products.values().toArray().filter(func(product) {
+      product.name.toLower().contains(#text(lowerSearchTerm)) or
+      product.sku.toLower().contains(#text(lowerSearchTerm))
+    });
     filtered;
   };
 
@@ -124,7 +128,13 @@ actor {
   public shared ({ caller }) func bulkImportProducts(productsArray : [Product]) : async () {
     for (p in productsArray.values()) {
       let key = makeKey(p.sku);
-      products.add(key, p);
+      let stored : Product = {
+        sku = key;
+        name = p.name;
+        cost = p.cost;
+        description = p.description;
+      };
+      upsert(key, stored);
     };
   };
 

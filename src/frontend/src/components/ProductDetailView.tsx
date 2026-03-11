@@ -1,11 +1,12 @@
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Package, Tag } from "lucide-react";
+import { ArrowLeft, Package, Tag, TrendingUp } from "lucide-react";
 import { motion } from "motion/react";
 import type { Product } from "../hooks/useQueries";
 
 interface ProductDetailViewProps {
   product: Product;
   onBack: () => void;
+  onShowQuotes: () => void;
 }
 
 function formatCost(cost: number) {
@@ -17,9 +18,14 @@ function formatCost(cost: number) {
   }).format(cost);
 }
 
-export function ProductDetailView({ product, onBack }: ProductDetailViewProps) {
+export function ProductDetailView({
+  product,
+  onBack,
+  onShowQuotes,
+}: ProductDetailViewProps) {
   const displayName = product.name?.trim() || null;
   const displaySku = product.sku?.trim() || null;
+  const hasValidCost = product.cost !== -1;
 
   return (
     <motion.div
@@ -81,7 +87,7 @@ export function ProductDetailView({ product, onBack }: ProductDetailViewProps) {
               </p>
               <div>
                 {displaySku ? (
-                  <span className="sku-badge inline-flex items-center px-3 py-1.5 rounded-md border border-primary/25 bg-primary/8 text-primary/90 text-base tracking-wide">
+                  <span className="sku-badge inline-flex items-center px-3 py-1.5 rounded-md border border-primary/25 bg-primary/8 text-primary/90 text-lg tracking-wide">
                     {displaySku}
                   </span>
                 ) : (
@@ -98,7 +104,7 @@ export function ProductDetailView({ product, onBack }: ProductDetailViewProps) {
                 Cost
               </p>
               <div>
-                {product.cost === -1 ? (
+                {!hasValidCost ? (
                   <div className="flex items-start gap-2">
                     <div className="mt-0.5 w-1.5 h-1.5 rounded-full bg-amber-500/70 flex-shrink-0" />
                     <p className="text-sm text-amber-400/90 leading-relaxed">
@@ -113,6 +119,27 @@ export function ProductDetailView({ product, onBack }: ProductDetailViewProps) {
                 )}
               </div>
             </div>
+          </div>
+
+          {/* Divider */}
+          <div className="border-t border-border/60" />
+
+          {/* Show Quotes button */}
+          <div className="flex justify-end">
+            <Button
+              data-ocid="product.detail.show_quotes_button"
+              onClick={onShowQuotes}
+              disabled={!hasValidCost}
+              className="gap-2 font-semibold"
+              title={
+                !hasValidCost
+                  ? "Cost not set — cannot calculate quotes"
+                  : undefined
+              }
+            >
+              <TrendingUp className="h-4 w-4" />
+              Show Quotes
+            </Button>
           </div>
         </div>
       </motion.div>
