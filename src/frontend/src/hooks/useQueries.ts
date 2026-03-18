@@ -19,6 +19,18 @@ export function useListAllProducts() {
   });
 }
 
+/**
+ * Client-side word-based search:
+ * Splits the search term into words and returns products where
+ * ANY word appears anywhere in the product name or SKU.
+ */
+function matchesSearch(product: Product, searchTerm: string): boolean {
+  const words = searchTerm.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return true;
+  const haystack = `${product.name} ${product.sku}`.toLowerCase();
+  return words.some((word) => haystack.includes(word));
+}
+
 export function useSearchProducts(searchTerm: string) {
   const { actor, isFetching } = useActor();
   return useQuery<Product[]>({
@@ -26,41 +38,8 @@ export function useSearchProducts(searchTerm: string) {
     queryFn: async () => {
       if (!actor) return [];
       if (!searchTerm.trim()) return actor.listAllProducts();
-
-      const trimmed = searchTerm.trim();
-
-      // Try SKU exact match only when the term looks like a SKU (non-empty, no spaces)
-      const skuLookupPromise =
-        trimmed.length > 0 && !trimmed.includes(" ")
-          ? actor.getProductBySKU(trimmed).catch(() => null)
-          : Promise.resolve(null);
-
-      const [skuResult, nameResults] = await Promise.all([
-        skuLookupPromise,
-        actor.searchProductsByName(trimmed),
-      ]);
-
-      // Deduplicate by composite key: sku (if non-empty) or name
-      const combined: Product[] = [];
-      const seen = new Set<string>();
-
-      function dedupeKey(p: Product) {
-        return p.sku.trim() !== "" ? `sku:${p.sku}` : `name:${p.name}`;
-      }
-
-      if (skuResult) {
-        const k = dedupeKey(skuResult);
-        combined.push(skuResult);
-        seen.add(k);
-      }
-      for (const p of nameResults) {
-        const k = dedupeKey(p);
-        if (!seen.has(k)) {
-          combined.push(p);
-          seen.add(k);
-        }
-      }
-      return combined;
+      const allProducts = await actor.listAllProducts();
+      return allProducts.filter((p) => matchesSearch(p, searchTerm));
     },
     enabled: !!actor && !isFetching,
     retry: 3,
